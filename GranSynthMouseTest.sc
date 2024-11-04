@@ -36,7 +36,7 @@ b.play;
 		MouseX.kr(0.5,2.1), // This sets the playback rate
 		//Making the grain pointer move faster or slower. (how quickly we keep changing the position where the grain starts
 		(
-			Phasor.ar(0, MouseY.kr(0.1,2,1)*BufRateScale.ir(b), 0, BufSamples.ir(b)-1) + LFNoise1.ar(100).bipolar(0.001*SampleRate.ir)
+			Phasor.ar(0, MouseY.kr(0.1,2,1)*BufRateScale.ir(b), 0, BufSamples.ir(b)) + LFNoise1.ar(100).bipolar(0.001*SampleRate.ir)
 
 		)/ BufSamples.ir(b), // Grain buff expects this to be between zero and 1 (Dividing it by the total number of samples)
 		2,
