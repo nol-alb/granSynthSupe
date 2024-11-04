@@ -206,6 +206,8 @@ b.zero;
 	}.loop
 }).play
 )
+
+~control.stop;
 ~val;
 
 //b.zero;
