@@ -99,8 +99,8 @@ SynthDef.new(\gran, {
 	durCtrl = min(durCtrl, maxGrainDur);
 
 	sig = GrainBuf.ar(
-		2,
-		densCtrl,
+		2, // how many channels are we outputting into
+		densCtrl, // how many grains per second are we generating
 		durCtrl,
 		buf,
 		rateCtrl,
@@ -136,23 +136,23 @@ b.zero; // Clear the buffer each time we start up the granulator
 ~g = Synth(\gran,
 	[
 		\amp, 0.5,
-		\buf, b,
+		\buf, b, // buffer containing the audio
 		\out, 0,
 		\atk, 1,
 		\rel, 1,
 		\gate, 1,
-		\sync, 1,
-		\dens, 40,
-		\baseDur, 0.05,
+		\sync, 1, // Synchronous or asynchronous grains to choose between dust or impulse triggers 0 is random
+		\dens, 40, // How many grains per second are being triggered
+		\baseDur, 0.05, //Durational length of each grain -- in seconds
 		\durRand, 1,
-		\rate, 1,
+		\rate, 1,  //The rate argument of the rate of playback of each grain
 		\rateRand, 1,
 		\pan, 0,
 		\panRand, 0,
 		\grainEnv, -1,
 		\ptrBus, ~ptrBus,
-		\ptrSampleDelay, s.sampleRate/3,
-		\ptrRandSamples, s.sampleRate/6,
+		\ptrSampleDelay, s.sampleRate/3, // Location within the buffer where the grain will start
+		\ptrRandSamples, s.sampleRate/6, // how many samples would you stretch the randomness of each playback grain
 		\minPtrDelay, 1000;
 	],
 	~granGrp
