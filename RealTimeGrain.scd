@@ -1,41 +1,44 @@
-ServerOptions.devices; //See available devices
+// Granular synth definition
 
-s.options.device = "Focusrite Usb Audio"; //change to your device, can use s.options.in/outdevices if in/out are not the same
+// 5 second Buffer
 
-(
-s.boot;
-s.meter;
-s.plotTree;
-)
+b = Buffer.alloc(s, s.sampleRate * 5, 1);
 
-// x = {SoundIn.ar(0!2)}.play; // test audio in out
-
-
-b = Buffer.alloc(s, s.sampleRate * 5, 1); //allocate 5 second buffer. This is what is where recorded audio is stored
+// mic for recording and pointer to point which sample to record from
 
 (
-~micBus = Bus.audio(s,1); // Routing busses
+~micBus = Bus.audio(s,1);
 ~ptrBus = Bus.audio(s,1);
 )
 
+// read a signal from a hardware input bus, with an amplitude control jto mute or adjust the level
+
+
 (
-SynthDef.new(\mic, {         // Receives audio from the input bus
-	arg in =0, out=0, amp=1; // change in/out to the correct channels for your hardware
+
+SynthDef.new(\mic, {
+	arg in=0, out=0, amp=1;
 	var sig;
 	sig = SoundIn.ar(in) * amp;
 	Out.ar(out, sig);
 }).add;
 
-
-SynthDef.new(\ptr, {        // Ptr is used as an index for record into the buffer
-	arg out=0, buf=0;
+// The ringBuffer phasor, with the buff and output as an argument to write from
+SynthDef.new(\ptr, {
+	arg out=0, buf=0, rate=1;
 	var sig;
-	sig = Phasor.ar(0,BufRateScale.kr(buf), 0, BufFrames.kr(buf));
-	Out.ar(out,sig);
+	sig = Phasor.ar(0, BufRateScale.kr(buf)*rate, 0, BufFrames.kr(buf));
+	// sig.poll;
+	Out.ar(out, sig);
 }).add;
 
+Synth(\ptr, [\buf, b, \out, ~ptrBus], ~ptrGrp);
+~ptrGrp.set(\rate,1);
+s.defaultGroup.deepFree;
 
-SynthDef.new(\rec, {       // Records audio into the buffer. Ptr resets at end of the buffer, causing input audio to record over the beginning of the buffer
+// Writing into the buffer with our pointer
+
+SynthDef.new(\rec, {
 	arg ptrIn=0, micIn=0, buf=0;
 	var ptr, sig;
 	ptr = In.ar(ptrIn, 1);
@@ -43,52 +46,55 @@ SynthDef.new(\rec, {       // Records audio into the buffer. Ptr resets at end o
 	BufWr.ar(sig, buf, ptr);
 }).add;
 
-SynthDef.new(\gran, {     // This is what does the actual synthesis by reading audio from the buffer
-	arg amp=0.5, out=0, atk=1, rel=1, // default values
-	buf=0, gate=1, sync=1, dens=40,
+
+SynthDef.new(\gran, {
+	arg amp=0.5, buf=0, out=0,
+	atk=1, rel=1, gate=1,
+	sync=1, dens=40,
 	baseDur=0.05, durRand=1,
 	rate=1, rateRand=1,
-	pan=0, panRand=0,
-	grainEnv=(-1), ptrBus=0, ptrSampleDelay = 20000, ptrRandSamples = 5000,
-	minPtrDelay=1000;
+	pan=0, panRand=0, grainEnv=(-1),
+	ptrBus=0, ptrSampleDelay=20000,
+	ptrRandSamples=5000, minPtrDelay=1000;
 
-	var sig, env, densCtrl, durCtrl, rateCtrl, panCtrl, ptr, ptrRand, totalDelay, maxGrainDur;
+	var sig, env, densCtrl, durCtrl, rateCtrl, panCtrl,
+	ptr, ptrRand, totalDelay, maxGrainDur;
 
 	env = EnvGen.kr(Env.asr(atk,1,rel), gate, doneAction:2);
 	densCtrl = Select.ar(sync, [Dust.ar(dens), Impulse.ar(dens)]);
 	durCtrl = baseDur * LFNoise1.ar(100).exprange(1/durRand,durRand);
-	rateCtrl = rate * LFNoise1.ar(100).exprange(1/rateRand,rateRand);
+	rateCtrl = rate * LFNoise1.ar(100).exprange(1/rateRand, rateRand);
 	panCtrl = pan + LFNoise1.kr(100).bipolar(panRand);
 
 	ptrRand = LFNoise1.ar(100).bipolar(ptrRandSamples);
-	totalDelay = max(ptrSampleDelay-ptrRandSamples, minPtrDelay);
+	totalDelay = max(ptrSampleDelay - ptrRand, minPtrDelay);
 
 	ptr = In.ar(ptrBus, 1);
-	ptr = ptr-totalDelay;
-	ptr = ptr / BufFrames.kr(buf);
+	ptr = ptr - totalDelay;
+	ptr = ptr / BufFrames.ir(buf);
 
 	maxGrainDur = (totalDelay / rateCtrl) / SampleRate.ir;
 	durCtrl = min(durCtrl, maxGrainDur);
 
 	sig = GrainBuf.ar(
-			2,
-			densCtrl,
-			durCtrl,
-			buf,
-			rateCtrl,
-			ptr,
-			2,
-		    panCtrl,
-			grainEnv
-		);
-
+		2,
+		densCtrl,
+		durCtrl,
+		buf,
+		rateCtrl,
+		ptr,
+		2,
+		panCtrl,
+		grainEnv
+	);
 
 	sig = sig * env * amp;
-	Out.ar(out,sig);
+	Out.ar(out, sig);
 }).add;
+
 )
 
-
+s.plotTree;
 
 (
 ~micGrp = Group.new;
@@ -97,47 +103,77 @@ SynthDef.new(\gran, {     // This is what does the actual synthesis by reading a
 ~granGrp = Group.after(~recGrp);
 )
 
-
 (
 Synth(\mic, [\in, 0, \out, ~micBus], ~micGrp);
 Synth(\ptr, [\buf, b, \out, ~ptrBus], ~ptrGrp);
 Synth(\rec, [\ptrIn, ~ptrBus, \micIn, ~micBus, \buf, b], ~recGrp);
 )
+(
+b.zero; // Clear the buffer each time we start up the granulator
 
-b.plot; // buffer debugging. At this point in script, audio is being recorded constantly into the buffer. Use these commands to see and hear the recorded audio.
-b.play;
-
-(  // Starts gran
-b.zero;
-~g = Synth(\gran, [
-	\amp, 0.5, // volume
-	\buf, b,   // which buffer to read from
-	\out, 0,   // out channel
-	\atk, 1,   // attack of envelope for each grain
-	\rel, 1,   // release of envelope for each grain
-	\gate, 1,  // 1 to hear audio input, 0 to not hear audio input
-	\sync, 1,  // 1 for quantized samples, 0 for random samples
-	\dens, 40, // how many samples
-	\baseDur, 0.05, // size of each grain
-	\durRand, 1,    // 1 for no randomization
-	\rate, 1,       // grain playback rate
-	\rateRand, 1,   // 1 for no randomization
-	\pan, 0,        // left right pan
-    \panRand, 0,    // randomize panning
-	\grainEnv, -1,  // -1 to use built in Hanning window
-	\ptrBus, ~ptrBus,
-	\ptrSampleDelay, s.sampleRate/3, // How far behind record do we read from
-	\ptrRandSamples, s.sampleRate/6, // read from ptr randomization
-	\minPtrDelay, 1000,
-], ~granGrp);
+~g = Synth(\gran,
+	[
+		\amp, 0.5,
+		\buf, b,
+		\out, 0,
+		\atk, 1,
+		\rel, 1,
+		\gate, 1,
+		\sync, 1,
+		\dens, 40,
+		\baseDur, 0.05,
+		\durRand, 1,
+		\rate, 1,
+		\rateRand, 1,
+		\pan, 0,
+		\panRand, 0,
+		\grainEnv, -1,
+		\ptrBus, ~ptrBus,
+		\ptrSampleDelay, s.sampleRate/3,
+		\ptrRandSamples, s.sampleRate/6,
+		\minPtrDelay, 1000;
+	],
+	~granGrp
+);
 )
 
+// Adding about 5 grain read pointers behind the write pointer
+(
+b.zero;
+~g = 12.collect({
+	arg n; // is the argument of pointers
+	Synth(\gran,
+		[
+			\amp, n.linlin(0,4,-3,-20).dbamp, // linearly mapping the amplitude based on read pointer position
+			\buf, b,
+			\out, 0,   // NEED TO FIGURE THIS OUT HAVENT BEEN APLE TO TEST WITH THE MESH. SET TO N?
+			\atk, 1,
+			\rel, 1,
+			\gate, 1,
+			\sync, 1,
+			\dens, exprand(20,40),
+			\baseDur, 0.08,
+			\durRand, 1.5,
+			\rate, 1,
+			\rateRand, 2.midiratio,
+			\pan, 0,
+			\panRand, 0.5,
+			\grainEnv, -1,
+			\ptrBus, ~ptrBus,
+			\ptrSampleDelay, n.linlin(0,4,20000,s.sampleRate * 2),
+			\ptrRandSamples, 10000,
+			\minPtrDelay, 1000;
+		],
+		~granGrp
+	);
+});
+)
+// Testing code
+//~g.do({ arg n; n.set(\gate, 0) });
 
-s.defaultGroup.deepFree;  //Free nodes but keep groups
 
 
 
 
 
-Server.killAll;
 
