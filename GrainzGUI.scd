@@ -143,8 +143,8 @@ b.zero;
 			\atk, 1,
 			\rel, 4,
 			\gate, 1,
-			\sync, 1, // Synchronous or asynchronous
-			\dens, exprand(20,40), // how many grains a second
+			\sync, 0, // Synchronous or asynchronous
+			\dens, 20,40, // how many grains a second
 			\baseDur, 0.08, // Duration of each grain
 			\durRand, 1,
 			\rate, 1,
@@ -154,7 +154,7 @@ b.zero;
 			\grainEnv, -1,
 			\ptrBus, ~ptrBus,
 			\ptrSampleDelay, n.linlin(0,11,20000,s.sampleRate * 3),
-			\ptrRandSamples, 10000, //Grain pointer smoothly or randomly following record pointer
+			\ptrRandSamples, 1, //Grain pointer smoothly or randomly following record pointer
 			\minPtrDelay, 1000;
 		],
 		~granGrp
@@ -166,73 +166,75 @@ b.zero;
 s.meter;
 
 // Slider to control playback rate
+	
 
-w = Window("GUI", Rect(500, 500, 400, 300)).front.alwaysOnTop_(true)
+(
+ ~scaleX = 1024 / 400; // Horizontal scaling factor
+ ~scaleY = 600 / 300;  // Vertical scaling factor
+
+w = Window("GUI", Rect(500, 500, 1024, 600)).front.alwaysOnTop_(true)
 	.background_(Color.new255(220, 245, 255));
 
 // Slider 1: Pointer Motion
-StaticText(w, Rect(50, 30, 150, 20))
+StaticText(w, Rect(50 * ~scaleX, 30 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.string_("Pointer Randomness")
-.align_(\center)
-.background_(Color.new255(240, 240, 240));
+	.align_(\center)
+	.background_(Color.new255(240, 240, 240));
 
-~slider1 = Slider(w, Rect(50, 50, 150, 20))
+~slider1 = Slider(w, Rect(50 * ~scaleX, 50 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.background_(Color.blue(0.3, 0.2))
-.action_({
-	arg sliderVal;
-	// Example action for slider 1
-	var expVal = sliderVal.value.linexp(0, 1, 600, s.sampleRate/3).postln;
-	~g.do({ arg n; n.set(\ptrRandSamples, expVal) });
-});
+	.action_({
+		arg sliderVal;
+		var expVal = sliderVal.value.linexp(0, 1, 600, s.sampleRate / 3).postln;
+		~g.do({ arg n; n.set(\ptrRandSamples, expVal) });
+	});
 
 // Slider 2: Density
-StaticText(w, Rect(50, 100, 150, 20))
+StaticText(w, Rect(50 * ~scaleX, 100 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.string_("Density")
 	.align_(\center)
 	.background_(Color.new255(240, 240, 240));
 
-~slider2 = Slider(w, Rect(50, 120, 150, 20))
+~slider2 = Slider(w, Rect(50 * ~scaleX, 120 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.background_(Color.blue(0.3, 0.2))
 	.action_({
 		arg sliderVal;
-		// Linear mapping for amplitude (0 to 1)
 		var denseVal = sliderVal.value.linexp(0, 1, 5, 120).postln;
 		~g.do({ arg n; n.set(\dens, denseVal) });
 	});
 
-	~btn = Button.new(w, Rect(210, 100, 50,30))
+// Button
+~btn = Button.new(w, Rect(210 * ~scaleX, 100 * ~scaleY, 50 * ~scaleX, 30 * ~scaleY))
 	.states_([
-		["Async", Color.white,  Color.new255(200, 50, 50)],
+		["Async", Color.white, Color.new255(200, 50, 50)],
 		["Sync", Color.black, Color.new255(50, 200, 100)]
 	])
 	.action_({
 		arg btnstate;
 		~g.do({ arg n; n.set(\sync, btnstate.value) });
-
 	});
 
 // Slider 3: Grain Playback Rate
-StaticText(w, Rect(50, 170, 150, 20))
+StaticText(w, Rect(50 * ~scaleX, 170 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.string_("Playback Rate")
 	.align_(\center)
 	.background_(Color.new255(240, 240, 240));
 
-~slider3 = Slider(w, Rect(50, 190, 150, 20))
+~slider3 = Slider(w, Rect(50 * ~scaleX, 190 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.background_(Color.blue(0.3, 0.2))
 	.action_({
 		arg sliderVal;
-		// Linear mapping for amplitude (0 to 1)
 		var rateVal = sliderVal.value.linlin(0, 1, -5.midiratio, 3.midiratio).postln;
 		~g.do({ arg n; n.set(\rate, rateVal) });
 	});
 
 // Slider 4: Grain Size
-StaticText(w, Rect(225, 30, 150, 20))
+StaticText(w, Rect(225 * ~scaleX, 30 * ~scaleY, 150 * ~scaleX, 20 * ~scaleY))
 	.string_("Grain Size")
 	.align_(\center)
 	.background_(Color.new255(240, 240, 240));
 
-~slider4 = Slider(w, Rect(290, 50, 20, 150))
+~slider4 = Slider(w, Rect(290 * ~scaleX, 50 * ~scaleY, 20 * ~scaleX, 150 * ~scaleY))
 	.background_(Color.blue(0.3, 0.2))
 	.action_({
 		arg sliderVal;
@@ -240,19 +242,19 @@ StaticText(w, Rect(225, 30, 150, 20))
 		~g.do({ arg n; n.set(\baseDur, sizeVal) });
 	});
 
-//Knob for Duration Randomization
-	~knb = Knob.new(w, Rect(50, 220, 50,50))
+// Knob for Duration Randomization
+~knb = Knob.new(w, Rect(50 * ~scaleX, 220 * ~scaleY, 50 * ~scaleX, 50 * ~scaleY))
 	.action_({
 		arg knobVal;
-		var durRandVal = knobVal.value.linexp(0,1,1,10.midiratio).postln;
+		var durRandVal = knobVal.value.linexp(0, 1, 1, 10.midiratio).postln;
 		~g.do({ arg n; n.set(\rateRand, durRandVal) });
 	});
-	StaticText(w, Rect(50, 280, 50, 50))
+
+StaticText(w, Rect(50 * ~scaleX, 280 * ~scaleY, 50 * ~scaleX, 50 * ~scaleY))
 	.string_("Rate Rand")
 	.align_(\center)
 	.background_(Color.new255(240, 240, 240));
-
-
+)
 
 });
 )
